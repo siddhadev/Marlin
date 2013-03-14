@@ -5,6 +5,7 @@
 #include "language.h"
 #include "cardreader.h"
 #include "temperature.h"
+#include "stepper.h"
 #include "ConfigurationStore.h"
 
 /* Configuration settings */
@@ -71,10 +72,11 @@ static void menu_action_setting_edit_long5(const char* pstr, unsigned long* ptr,
 #define MENU_ITEM(type, label, args...) do { \
     if (_menuItemNr == _lineNr) { \
         if (lcdDrawUpdate) { \
+            const char* _label_pstr = PSTR(label); \
             if ((encoderPosition / ENCODER_STEPS_PER_MENU_ITEM) == _menuItemNr) { \
-                lcd_implementation_drawmenu_ ## type ## _selected (_drawLineNr, PSTR(label) , ## args ); \
+                lcd_implementation_drawmenu_ ## type ## _selected (_drawLineNr, _label_pstr , ## args ); \
             }else{\
-                lcd_implementation_drawmenu_ ## type (_drawLineNr, PSTR(label) , ## args ); \
+                lcd_implementation_drawmenu_ ## type (_drawLineNr, _label_pstr , ## args ); \
             }\
         }\
         if (LCD_CLICKED && (encoderPosition / ENCODER_STEPS_PER_MENU_ITEM) == _menuItemNr) {\
@@ -136,8 +138,7 @@ static void lcd_status_screen()
         currentMenu = lcd_main_menu;
         lcd_quick_feedback();
     }
-    if (abs(encoderPosition / 2) > 1)
-        feedmultiply += encoderPosition / 2;
+    feedmultiply += int(encoderPosition);
     encoderPosition = 0;
     if (feedmultiply < 10)
         feedmultiply = 10;
@@ -179,7 +180,7 @@ static void lcd_main_menu()
 {
     START_MENU();
     MENU_ITEM(back, MSG_WATCH, lcd_status_screen);
-    if (IS_SD_PRINTING)
+    if (movesplanned() || IS_SD_PRINTING)
     {
         MENU_ITEM(submenu, MSG_TUNE, lcd_tune_menu);
     }else{
@@ -198,9 +199,15 @@ static void lcd_main_menu()
             MENU_ITEM(function, MSG_STOP_PRINT, lcd_sdcard_stop);
         }else{
             MENU_ITEM(submenu, MSG_CARD_MENU, lcd_sdcard_menu);
+#if SDCARDDETECT < 1
+			MENU_ITEM(gcode, MSG_CNG_SDCARD, PSTR("M21"));	// SD-card changed by user
+#endif			
         }
     }else{
         MENU_ITEM(submenu, MSG_NO_CARD, lcd_sdcard_menu);
+#if SDCARDDETECT < 1		
+		MENU_ITEM(gcode, MSG_INIT_SDCARD, PSTR("M21"));	// Manually initialize the SD-card via user interface
+#endif		
     }
 #endif
     END_MENU();
@@ -221,10 +228,7 @@ void lcd_preheat_pla()
     setTargetHotend1(plaPreheatHotendTemp);
     setTargetHotend2(plaPreheatHotendTemp);
     setTargetBed(plaPreheatHPBTemp);
-#if FAN_PIN > -1
     fanSpeed = plaPreheatFanSpeed;
-    analogWrite(FAN_PIN,  fanSpeed);
-#endif
     lcd_return_to_status();
 }
 
@@ -234,10 +238,7 @@ void lcd_preheat_abs()
     setTargetHotend1(absPreheatHotendTemp);
     setTargetHotend2(absPreheatHotendTemp);
     setTargetBed(absPreheatHPBTemp);
-#if FAN_PIN > -1
     fanSpeed = absPreheatFanSpeed;
-    analogWrite(FAN_PIN,  fanSpeed);
-#endif
     lcd_return_to_status();
 }
 
@@ -258,6 +259,9 @@ static void lcd_tune_menu()
 #endif
     MENU_ITEM_EDIT(int3, MSG_FAN_SPEED, &fanSpeed, 0, 255);
     MENU_ITEM_EDIT(int3, MSG_FLOW, &extrudemultiply, 10, 999);
+#ifdef FILAMENTCHANGEENABLE
+     MENU_ITEM(gcode, MSG_FILAMENTCHANGE, PSTR("M600"));
+#endif
     END_MENU();
 }
 
@@ -380,9 +384,9 @@ static void lcd_move_menu_axis()
     MENU_ITEM(back, MSG_MOVE_AXIS, lcd_move_menu);
     MENU_ITEM(submenu, "Move X", lcd_move_x);
     MENU_ITEM(submenu, "Move Y", lcd_move_y);
-    MENU_ITEM(submenu, "Move Z", lcd_move_z);
     if (move_menu_scale < 10.0)
     {
+        MENU_ITEM(submenu, "Move Z", lcd_move_z);
         MENU_ITEM(submenu, "Extruder", lcd_move_e);
     }
     END_MENU();
@@ -518,6 +522,9 @@ static void lcd_control_motion_menu()
     MENU_ITEM_EDIT(float52, MSG_YSTEPS, &axis_steps_per_unit[Y_AXIS], 5, 9999);
     MENU_ITEM_EDIT(float51, MSG_ZSTEPS, &axis_steps_per_unit[Z_AXIS], 5, 9999);
     MENU_ITEM_EDIT(float51, MSG_ESTEPS, &axis_steps_per_unit[E_AXIS], 5, 9999);    
+#ifdef ABORT_ON_ENDSTOP_HIT_FEATURE_ENABLED
+    MENU_ITEM_EDIT(bool, "Endstop abort", &abort_on_endstop_hit);
+#endif
     END_MENU();
 }
 
@@ -697,6 +704,8 @@ void lcd_init()
     WRITE(SDCARDDETECT, HIGH);
     lcd_oldcardstatus = IS_SD_INSERTED;
 #endif//(SDCARDDETECT > -1)
+    lcd_buttons_update();
+    encoderDiff = 0;
 }
 
 void lcd_update()
@@ -887,13 +896,17 @@ char *ftostr31(const float &x)
 char *ftostr32(const float &x)
 {
   long xx=x*100;
-  conv[0]=(xx>=0)?'+':'-';
+  if (xx >= 0)
+    conv[0]=(xx/10000)%10+'0';
+  else
+    conv[0]='-';
   xx=abs(xx);
-  conv[1]=(xx/100)%10+'0';
-  conv[2]='.';
-  conv[3]=(xx/10)%10+'0';
-  conv[4]=(xx)%10+'0';
-  conv[5]=0;
+  conv[1]=(xx/1000)%10+'0';
+  conv[2]=(xx/100)%10+'0';
+  conv[3]='.';
+  conv[4]=(xx/10)%10+'0';
+  conv[5]=(xx)%10+'0';
+  conv[6]=0;
   return conv;
 }
 

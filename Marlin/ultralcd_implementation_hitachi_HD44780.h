@@ -198,6 +198,8 @@ static void lcd_implementation_status_screen()
     lcd.print('/');
     lcd.print(itostr3left(tTarget));
     lcd_printPGM(PSTR(LCD_STR_DEGREE " "));
+    if (tTarget < 10)
+        lcd.print(' ');
 
 # if EXTRUDERS > 1 || TEMP_SENSOR_BED != 0
     //If we have an 2nd extruder or heated bed, show that in the top right corner
@@ -215,6 +217,8 @@ static void lcd_implementation_status_screen()
     lcd.print('/');
     lcd.print(itostr3left(tTarget));
     lcd_printPGM(PSTR(LCD_STR_DEGREE " "));
+    if (tTarget < 10)
+        lcd.print(' ');
 # endif//EXTRUDERS > 1 || TEMP_SENSOR_BED != 0
 #endif//LCD_WIDTH > 19
 
@@ -242,6 +246,8 @@ static void lcd_implementation_status_screen()
     lcd.print('/');
     lcd.print(itostr3left(tTarget));
     lcd_printPGM(PSTR(LCD_STR_DEGREE " "));
+    if (tTarget < 10)
+        lcd.print(' ');
 #  else
     lcd.setCursor(0,1);
     lcd.print('X');
@@ -250,9 +256,9 @@ static void lcd_implementation_status_screen()
     lcd.print(ftostr3(current_position[Y_AXIS]));
 #  endif//EXTRUDERS > 1 || TEMP_SENSOR_BED != 0
 # endif//LCD_WIDTH > 19
-    lcd.setCursor(LCD_WIDTH - 7, 1);
+    lcd.setCursor(LCD_WIDTH - 8, 1);
     lcd.print('Z');
-    lcd.print(ftostr31(current_position[Z_AXIS]));
+    lcd.print(ftostr32(current_position[Z_AXIS]));
 #endif//LCD_HEIGHT > 2
 
 #if LCD_HEIGHT > 3
@@ -291,7 +297,12 @@ static void lcd_implementation_status_screen()
 static void lcd_implementation_drawmenu_generic(uint8_t row, const char* pstr, char pre_char, char post_char)
 {
     char c;
-    uint8_t n = LCD_WIDTH - 1 - 2;
+    //Use all characters in narrow LCDs
+  #if LCD_WIDTH < 20
+    	uint8_t n = LCD_WIDTH - 1 - 1;
+    #else
+    	uint8_t n = LCD_WIDTH - 1 - 2;
+  #endif
     lcd.setCursor(0, row);
     lcd.print(pre_char);
     while((c = pgm_read_byte(pstr)) != '\0')
@@ -308,7 +319,12 @@ static void lcd_implementation_drawmenu_generic(uint8_t row, const char* pstr, c
 static void lcd_implementation_drawmenu_setting_edit_generic(uint8_t row, const char* pstr, char pre_char, char* data)
 {
     char c;
-    uint8_t n = LCD_WIDTH - 1 - 2 - strlen(data);
+    //Use all characters in narrow LCDs
+  #if LCD_WIDTH < 20
+    	uint8_t n = LCD_WIDTH - 1 - 1 - strlen(data);
+    #else
+    	uint8_t n = LCD_WIDTH - 1 - 2 - strlen(data);
+  #endif
     lcd.setCursor(0, row);
     lcd.print(pre_char);
     while((c = pgm_read_byte(pstr)) != '\0')
@@ -325,7 +341,12 @@ static void lcd_implementation_drawmenu_setting_edit_generic(uint8_t row, const 
 static void lcd_implementation_drawmenu_setting_edit_generic_P(uint8_t row, const char* pstr, char pre_char, const char* data)
 {
     char c;
-    uint8_t n = LCD_WIDTH - 1 - 2 - strlen_P(data);
+    //Use all characters in narrow LCDs
+  #if LCD_WIDTH < 20
+    	uint8_t n = LCD_WIDTH - 1 - 1 - strlen_P(data);
+    #else
+    	uint8_t n = LCD_WIDTH - 1 - 2 - strlen_P(data);
+  #endif
     lcd.setCursor(0, row);
     lcd.print(pre_char);
     while((c = pgm_read_byte(pstr)) != '\0')
@@ -357,10 +378,14 @@ static void lcd_implementation_drawmenu_setting_edit_generic_P(uint8_t row, cons
 #define lcd_implementation_drawmenu_setting_edit_bool(row, pstr, pstr2, data) lcd_implementation_drawmenu_setting_edit_generic_P(row, pstr, ' ', (*(data))?PSTR(MSG_ON):PSTR(MSG_OFF))
 void lcd_implementation_drawedit(const char* pstr, char* value)
 {
-    lcd.setCursor(0, 1);
+    lcd.setCursor(1, 1);
     lcd_printPGM(pstr);
     lcd.print(':');
-    lcd.setCursor(19 - strlen(value), 1);
+   #if LCD_WIDTH < 20
+    	lcd.setCursor(LCD_WIDTH - strlen(value), 1);
+    #else
+    	lcd.setCursor(LCD_WIDTH -1 - strlen(value), 1);
+   #endif
     lcd.print(value);
 }
 static void lcd_implementation_drawmenu_sdfile_selected(uint8_t row, const char* pstr, const char* filename, char* longFilename)
