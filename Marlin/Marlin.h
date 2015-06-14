@@ -176,7 +176,9 @@ void ClearToSend();
 void get_coordinates();
 #ifdef DELTA
 void calculate_delta(float cartesian[3]);
+#ifdef ENABLE_AUTO_BED_LEVELING
 void adjust_delta(float cartesian[3]);
+#endif// ENABLE_AUTO_BED_LEVELING
 void prepare_move_raw();
 extern float delta[3];
 #endif

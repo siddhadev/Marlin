@@ -22,13 +22,23 @@
 #ifdef SDSUPPORT
 #include "SdFatUtil.h"
 
+#ifdef __arm__
+// should use uinstd.h to define sbrk but Due causes a conflict
+extern "C" char* sbrk(int incr);
+#else // __ARM__
+extern char *__brkval;
+extern char __bss_end;
+#endif // __arm
 //------------------------------------------------------------------------------
 /** Amount of free RAM
  * \return The number of free bytes.
  */
 int SdFatUtil::FreeRam() {
-  extern int  __bss_end;
-  extern int* __brkval;
+/*
+  extern "C" {
+    extern int  __bss_end;
+    extern int* __brkval;
+  }
   int free_memory;
   if (reinterpret_cast<int>(__brkval) == 0) {
     // if no heap use from end of bss section
@@ -40,6 +50,13 @@ int SdFatUtil::FreeRam() {
                   - reinterpret_cast<int>(__brkval);
   }
   return free_memory;
+*/
+  char top;
+#ifdef __arm__
+  return &top - reinterpret_cast<char*>(sbrk(0));
+#else // __arm__
+  return __brkval ? &top - __brkval : &top - &__bss_end;
+#endif // __arm__
 }
 //------------------------------------------------------------------------------
 /** %Print a string in flash memory.

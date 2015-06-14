@@ -4148,6 +4148,8 @@ void calculate_delta(float cartesian[3])
   */
 }
 
+#ifdef ENABLE_AUTO_BED_LEVELING
+
 // Adjust print surface height by linear interpolation over the bed_level array.
 void adjust_delta(float cartesian[3])
 {
@@ -4186,6 +4188,7 @@ void adjust_delta(float cartesian[3])
   SERIAL_ECHOPGM(" offset="); SERIAL_ECHOLN(offset);
   */
 }
+#endif//ENABLE_AUTO_BED_LEVELING
 
 void prepare_move_raw()
 {
